@@ -52,7 +52,7 @@ function game:init()
 		joystick=1
 	}
 	movement_force = 50
-	range = 200
+	range = 170
 
 	powerup_timeout = 5
 
@@ -112,22 +112,18 @@ function collisionAdd( a, b, coll )
 	if powerup then
 		if a == powerup then
 			if b == players[1] then
-				print("Player 1 got "..powerup[3])
 				activatePowerup(1, powerup[3])
 				destroyPowerup(nil, 1)
 			elseif b == players[2] then
-				print("Player 2 got "..powerup[3])
 				activatePowerup(2, powerup[3])
 				destroyPowerup(nil, 1)
 			end
 
 		elseif b == powerup then
 			if a == players[1] then
-				print("Player 1 got "..powerup[3])
 				activatePowerup(1, powerup[3])
 				destroyPowerup(nil, 1)
 			elseif a == players[2] then
-				print("Player 2 got "..powerup[3])
 				activatePowerup(2, powerup[3])
 				destroyPowerup(nil, 1)
 			end

@@ -7,7 +7,8 @@ function love.load()
 	states = {}
 	states.game = require "states.game"
 	states.result = require "states.result"
+	states.start = require "states.start"
 
 	Gamestate.registerEvents()
-	Gamestate.switch(states.game)
+	Gamestate.switch(states.start)
 end
