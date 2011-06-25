@@ -35,6 +35,8 @@ function game:init()
 	players[2][2] = love.physics.newCircleShape(players[2][1], 0, 0, 15)
 	players[2][2]:setData(players[2])
 
+	players[1].power_multiplier, players[2].power_multiplier = 1,1
+
 	players[1].controls = {
 		left="left",
 		right="right",
@@ -50,8 +52,9 @@ function game:init()
 		joystick=1
 	}
 	movement_force = 50
-	player_push_force = 50
 	range = 200
+
+	powerup_timeout = 5
 
 	number_of_objects = 13
 	timelimit = 180
@@ -74,23 +77,58 @@ function game:init()
 	createPowerups()
 end
 
+function activatePowerup( player_num, powerup_key )
+	players[player_num].powerup = powerup_key
+	if powerup_key == "M" then
+		local x,y = players[player_num][1]:getPosition()
+		x = x - math.pow(-1, player_num) * 200
+		players[player_num].magnet = {}
+		players[player_num].magnet[1] = love.physics.newBody(world, x, y, 0, 0)
+		players[player_num].magnet[2] = love.physics.newCircleShape(
+			players[player_num].magnet[1], 0, 0, 15)
+	elseif powerup_key == "G" then
+		world:setGravity( -10 * math.pow(-1, player_num) ,0)
+	elseif powerup_key == "P" then
+		players[player_num].power_multiplier = 2
+	end
+	Timer.add( powerup_timeout, function() deactivatePowerup(player_num) end)
+end
+
+function deactivatePowerup( player_num )
+	if players[player_num].powerup == "M" then
+		players[player_num].magnet[1]:destroy()
+		players[player_num].magnet[2]:destroy()
+		players[player_num].magnet = nil
+	elseif players[player_num].powerup == "G" then
+		world:setGravity(0,0)
+	elseif players[player_num].powerup == "P" then
+		players[player_num].power_multiplier = 1
+	end
+
+	players[player_num].powerup = nil
+end
+
 function collisionAdd( a, b, coll )
 	if powerup then
 		if a == powerup then
 			if b == players[1] then
 				print("Player 1 got "..powerup[3])
+				activatePowerup(1, powerup[3])
 				destroyPowerup(nil, 1)
 			elseif b == players[2] then
 				print("Player 2 got "..powerup[3])
+				activatePowerup(2, powerup[3])
 				destroyPowerup(nil, 1)
 			end
 
 		elseif b == powerup then
 			if a == players[1] then
 				print("Player 1 got "..powerup[3])
+				activatePowerup(1, powerup[3])
 				destroyPowerup(nil, 1)
 			elseif a == players[2] then
 				print("Player 2 got "..powerup[3])
+				activatePowerup(2, powerup[3])
 				destroyPowerup(nil, 1)
 			end
 		end
@@ -107,7 +145,9 @@ function collisionResult( a, b, coll )
 end]]--
 
 function createPowerups()
-	powerups["M"] = love.graphics.newFramebuffer( 30, 30 )
+	for _, key in pairs({"M","G","P"}) do
+		powerups[key] = love.graphics.newFramebuffer( 30, 30 )
+	end
 	for key, buffer in pairs(powerups) do
 		buffer:renderTo( function ()
 			love.graphics.setColor(255,255,255)
@@ -123,10 +163,13 @@ function createPowerups()
 end
 
 function spawnPowerup()
+	local num = math.random(1,3)
+	local key = ({"M","G","P"})[num]
+
 	powerup = {}
-	powerup[1] = love.physics.newBody(world, 400, (bar[1]:getY()-300)/2)
+	powerup[1] = love.physics.newBody(world, 400, (bar[1]:getY()-300)*2/5)
 	powerup[2] = love.physics.newCircleShape(powerup[1] , 0, 0, 15)
-	powerup[3] = "M"
+	powerup[3] = key
 	powerup[2]:setSensor( true )
 	powerup[2]:setData(powerup)
 
@@ -216,13 +259,25 @@ end
 function attractObjects()
 	for i, player in pairs(players) do
 		local p_vec = Vector(player[1]:getPosition())
+		local m_vec = nil
+		if player.magnet then
+			m_vec = Vector(player.magnet[1]:getPosition())
+		end
 		for j, object in pairs(objects) do
 			local o_vec = Vector(object[1]:getPosition())
 			local dir = p_vec - o_vec
 			if dir:len() <= range then
 				local force_vector = (dir:normalized() * range - dir) * 0.05
-				object[1]:applyForce(force_vector:unpack())
+				object[1]:applyForce(
+					(force_vector*player.power_multiplier):unpack())
 				player[1]:applyForce((force_vector * -0.86):unpack())
+			end
+			if m_vec then
+				local dir = m_vec - o_vec
+				if dir:len() <= range then
+					local force_vector = (dir:normalized() * range - dir) * 0.05
+					object[1]:applyForce(force_vector:unpack())
+				end
 			end
 		end
 	end
@@ -233,10 +288,23 @@ function pushPlayers()
 	
 	if dir:len() <= range then
 		local force_vector = dir:normalized() * range - dir
-		players[1][1]:applyForce(force_vector:unpack())
-		players[2][1]:applyForce((force_vector * -1):unpack())
+		players[1][1]:applyForce(
+			(force_vector*players[2].power_multiplier):unpack())
+		players[2][1]:applyForce(
+			(force_vector*players[1].power_multiplier * -1):unpack())
 	end
-
+	for i = 1,2 do
+		if players[i].magnet then
+			for j = 1,2 do
+				local dir = Vector(players[j][1]:getPosition()) - Vector(players[i].magnet[1]:getPosition())
+				
+				if dir:len() <= range then
+					local force_vector = dir:normalized() * range - dir
+					players[j][1]:applyForce(force_vector:unpack())
+				end
+			end
+		end
+	end
 end
 
 function playerMovement(player)
@@ -266,6 +334,21 @@ function playerMovement(player)
 	end
 end
 
+function drawMagnet( player_num )
+	local key = "M"
+	local x,y = players[player_num].magnet[1]:getPosition()
+	love.graphics.setColor(255,255,255)
+	love.graphics.circle("fill", x, y, 15, 15)
+	if player_num == 1 then
+		love.graphics.setColor(255,0,0)
+	else
+		love.graphics.setColor(0,0,255)
+	end
+	love.graphics.circle("line", x, y, 15, 15)
+	love.graphics.setFont(font_big)
+	love.graphics.print(key, x-10, y-12)
+end
+
 function drawPowerups()
 	if powerup then
 		love.graphics.draw(powerups[powerup[3]], powerup[1]:getX()-15, powerup[1]:getY())
@@ -274,6 +357,18 @@ function drawPowerups()
 		love.graphics.setColor(0,255,0)
 		love.graphics.circle("line", dead_powerup[1], dead_powerup[2],
 				dead_powerup[3], 15)
+	end
+	if players[1].powerup then
+		love.graphics.draw(powerups[players[1].powerup], 630, 10, 0, 0.5, 0.5)
+		if players[1].powerup == "M" then
+			drawMagnet( 1 )
+		end
+	end
+	if players[2].powerup then
+		love.graphics.draw(powerups[players[2].powerup], 170, 10, 0, 0.5, 0.5)
+		if players[2].powerup == "M" then
+			drawMagnet( 2 )
+		end
 	end
 end
 
