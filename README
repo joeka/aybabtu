@@ -1,0 +1,13 @@
+All your balls are belong to us!
+
+A magnetic ball stealing game.
+
+
+
+Created for the GPN11 Gamejam.
+(https://entropia.de/GPN11:Gamejam)
+
+
+Dependencies:
+hump http://github.com/vrld/hump/
+(should be in the game directory)
